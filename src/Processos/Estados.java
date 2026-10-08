@@ -4,6 +4,6 @@ public enum Estados {
     NOVO,
     PRONTO,
     BLOQUEADO,
-    EXECUTANDO,
+    EM_EXECUCAO,
     FINALIZADO
 }
