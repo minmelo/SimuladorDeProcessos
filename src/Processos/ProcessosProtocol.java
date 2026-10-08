@@ -11,7 +11,12 @@ public interface ProcessosProtocol {
 
     void setEstado(Estados e);
     void executar(int unidades);   // reduz tempoRestante
+
     boolean terminou();
+    boolean deveBloquear();
+    void bloquear(int agora);
+    int getBloqueadoAte();
+
 
     void registrarInicio(int t);
     void registrarConclusao(int t);
