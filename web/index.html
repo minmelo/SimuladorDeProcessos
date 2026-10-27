@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>núcleo • Laboratório de sistemas</title>
+    <style>
+        :root{--p:#6c3fe0;--pl:#efe8ff;--ink:#1d1a2f;--mut:#8b87a3;--bd:#ebe8f4;--bg:#f8f7fd;--red:#e5484d;--rbg:#fdebec;--blu:#3d6fd8;--bbg:#e8f0ff;--dk:#1e1a2e}
+        *{box-sizing:border-box;margin:0;font-family:Inter,system-ui,"Segoe UI",sans-serif}
+        body{background:linear-gradient(135deg,#f0ecfc,#e2dbf8);color:var(--ink);font-size:12.5px;min-height:100vh;padding:26px}
+        .win{max-width:1010px;margin:0 auto;background:var(--bg);border-radius:14px;box-shadow:0 12px 40px #6c3fe02a;overflow:hidden;border:1px solid #e0dbf3}
+        .tt{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fff;border-bottom:1px solid var(--bd)}
+        .tt .ic{width:20px;height:20px;border-radius:6px;background:var(--p);color:#fff;display:grid;place-items:center;font-size:11px}
+        .tt b{font-weight:600}.tt span{color:var(--mut)}.tt .x{margin-left:auto;margin:-10px -14px -10px auto;width:46px;align-self:stretch;background:#fdecee;color:var(--red);display:grid;place-items:center;cursor:pointer;font-size:13px}
+        .nav{display:flex;align-items:center;gap:10px;padding:11px 18px;background:#fff;border-bottom:1px solid var(--bd);color:var(--mut)}
+        .nav .lg{color:var(--ink);font-size:15px}.nav .r{margin-left:auto;display:flex;gap:22px}.nav .r b{color:var(--ink)}
+        .foot{display:flex;justify-content:space-between;padding:7px 14px;border-top:1px solid var(--bd);background:#fff;font-size:10px;color:var(--mut)}
+        .foot i{color:#2fa36b;font-style:normal;margin-right:5px}
+        .eb{color:var(--p);font-size:9.5px;font-weight:600;letter-spacing:.06em}
+        h1{font-size:25px;font-weight:700;margin:6px 0 4px}.sub{color:var(--mut)}
+        .card{background:#fff;border:1px solid var(--bd);border-radius:11px}
+        .btn{border:1px solid var(--bd);background:#fff;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:600;color:var(--ink)}
+        .btn.p{background:var(--p);color:#fff;border-color:var(--p)}
+        .chip{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:600}
+        .cE{background:var(--pl);color:var(--p)}.cP{background:var(--bbg);color:var(--blu)}.cB{background:var(--rbg);color:var(--red)}
+        .alg{padding:18px;cursor:pointer;position:relative}.alg.on{border:2px solid var(--p);background:#fbf9ff}
+        .alg .rd{position:absolute;right:16px;top:16px;width:16px;height:16px;border-radius:50%;border:1px solid #cfcae3}.alg.on .rd{background:var(--p);border-color:var(--p)}
+        .alg .ai{width:28px;height:28px;border-radius:8px;background:#f1eefa;display:grid;place-items:center;color:var(--mut);margin-bottom:12px}.alg.on .ai{background:var(--p);color:#fff}
+        .alg h2{font-size:20px;font-weight:600}.alg small{display:block;color:var(--mut);font-size:10px;margin:3px 0 9px}.alg p{color:#5d5977;line-height:1.5;min-height:48px}
+        .bars{display:flex;gap:2px;margin:10px 0 6px}.bars i{flex:1;height:18px;border-radius:3px;font-style:normal;font-size:8px;color:#fff;display:grid;place-items:center}
+        .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+        .row{display:flex;align-items:center}
+        .step{display:inline-grid;place-items:center;width:17px;height:17px;border-radius:50%;background:var(--p);color:#fff;font-size:9px;margin-right:5px}
+        .side{width:200px;padding:16px 14px;border-right:1px solid var(--bd);background:#fff;flex:none}
+        .app{display:flex;gap:9px;align-items:center;padding:7px;border-radius:9px;cursor:pointer;margin-bottom:6px}.app:hover{background:#f4f1fc}
+        .app .ai{width:30px;height:30px;border-radius:8px;color:#fff;display:grid;place-items:center}.app small{display:block;color:var(--mut);font-size:9.5px}
+        .dk{background:var(--dk);color:#fff;border-radius:11px;padding:14px}
+        table{width:100%;border-collapse:collapse}th{font-size:9px;color:var(--mut);font-weight:500;text-align:left;padding:8px 14px;letter-spacing:.05em}td{padding:9px 14px;border-top:1px solid var(--bd)}
+        tr.sel td{background:#f5f0ff}
+        .tl{display:flex;gap:3px;margin-top:6px}.tl div{border-radius:6px;color:#fff;padding:8px 10px;font-size:10.5px;display:flex;justify-content:space-between;overflow:hidden;white-space:nowrap}
+        .ov{position:fixed;inset:0;background:#2a2150aa;display:grid;place-items:center;z-index:9}.ov .win{width:min(760px,94vw)}
+        .hero{height:170px;border-radius:12px;background:linear-gradient(160deg,#3a2f6e,#8a6fd8 55%,#c6b2f5);color:#fff;padding:14px;display:flex;flex-direction:column;justify-content:flex-end;margin:14px 0}
+        .act{padding:13px;cursor:pointer;text-align:left;display:flex;gap:10px;align-items:center}.act.a1{background:var(--p);color:#fff}.act small{opacity:.7;display:block;font-size:10px}
+        input,select{border:1px solid var(--bd);border-radius:8px;padding:7px 10px;background:#fff}
+    </style></head><body><div id="app"></div>
+<script>
+    const S={tela:'alg',alg:'rr',q:4,ms:1000,st:null,app:null,rel:false,ev:[],prev:null};
+    const APPS={'Jogo':{c:'#6c3fe0',i:'🎮',t:'Vale dos cristais',a:[['Atacar','CPU • 6 s de execução','A'],['Pular','CPU • 2 s de execução','P'],['Andar','CPU • 4 s de execução','D']]},
+    'Rede social':{c:'#ec5f87',i:'👥',t:'Conecta',a:[['Seguir','E/S • 3 s de CPU','S'],['Curtir','E/S • 2 s de CPU','C']]},
+    'Calculadora':{c:'#1e1a2e',i:'🧮',t:'Padrão',a:[['Calcular','CPU • 2 s de execução','=']]},
+    'Navegador':{c:'#5b8def',i:'🌐',t:'Explorar',a:[['Pesquisar','E/S • 5 s de CPU','↵']]}};
+    const ALGS=[['fcfs','FCFS','First Come, First Served','Quem chega primeiro executa primeiro. Cada processo usa a CPU até terminar ou bloquear.','Por ordem de chegada • Não preemptivo','☰'],
+    ['rr','Round Robin','Uma fatia de tempo para cada processo','Todos recebem um quantum. Ao fim de cada fatia, o processo volta para o final da fila.','Justo e interativo • Preemptivo','⟳'],
+    ['edf','EDF','Earliest Deadline First','O prazo mais próximo tem prioridade. A CPU atende primeiro a tarefa mais urgente.','Por prazo de conclusão • Preemptivo','⏰']];
+    const NOMEALG={fcfs:'FCFS',rr:'Round Robin',edf:'EDF'};
+    const sh=['#6c3fe0','#a98ce8','#c9b8f2'];
+    const pid=n=>'P'+String(n).padStart(2,'0');
+    const sp=n=>{const [a,b]=n.split(' / ');return{app:a,acao:b}};
+    const api=(p)=>fetch('/api/'+p,{method:'POST'});
+    const chip=e=>e=='E'?'<span class="chip cE">• Em execução</span>':e=='B'?'<span class="chip cB">• Bloqueado</span>':'<span class="chip cP">• Pronto</span>';
+    const barra=(t,x)=>`<div class="tt"><span class="ic">▣</span><b>${t}</b><span>— Simulador de processos</span><div class="x" ${x?`onclick="${x}"`:''}>×</div></div><div class="nav"><span class="lg">≋ núcleo</span>| Laboratório de sistemas<div class="r"><span>Ambiente de estudo</span><b>ⓘ Ajuda</b></div></div>`;
+    const foot=()=>`<div class="foot"><span><i>●</i>Simulação local • dados demonstrativos</span><span>${NOMEALG[S.alg]}${S.alg=='rr'?' • Quantum: '+S.q+' s':''} • 1 CPU</span></div>`;
+    function bars(k){const c=k=='edf'?['#e0708a',sh[0],sh[1]]:k=='rr'?[sh[0],'#a98ce8',sh[2],sh[0],'#a98ce8',sh[2]]:['#a98ce8','#b9a2ee',sh[2]];
+     const l=k=='rr'?['P1','P2','P3','P1','P2','P3']:k=='edf'?['P3','P1','P2']:['P1','P2','P3'];return`<div class="bars">${c.map((x,i)=>`<i style="background:${x}">${l[i]}</i>`).join('')}</div>`}
+    function telaAlg(){return`<div class="win">${barra('Configurar simulação • Algoritmo de escalonamento')}<div style="padding:22px 26px 30px">
+    <div class="row"><div><div class="eb">CONFIGURAR SIMULAÇÃO</div><h1>Quem usa a CPU primeiro?</h1><div class="sub">Escolha como o sistema vai organizar a execução dos processos. Você poderá comparar os resultados.</div></div>
+    <div style="margin-left:auto;font-size:10.5px"><span class="step">1</span><b>Algoritmo</b> ── <span class="step" style="background:#e5e1f2;color:var(--mut)">2</span><span style="color:var(--mut)">Simulação</span></div></div>
+    <div class="grid3" style="margin:18px 0">${ALGS.map(a=>`<div class="card alg ${S.alg==a[0]?'on':''}" onclick="S.alg='${a[0]}';render()"><span class="rd"></span><div class="ai">${a[5]}</div><h2>${a[1]}</h2><small>${a[2]}</small><p>${a[3]}</p>${bars(a[0])}<small style="color:${S.alg==a[0]?'var(--p)':'var(--mut)'};margin:0">${a[4]}</small></div>`).join('')}</div>
+    <div class="card row" style="padding:16px 18px;gap:34px"><div style="width:230px"><b style="font-size:13px">☷ Ajuste o seu experimento</b><div class="sub" style="font-size:10.5px;margin-top:4px">No Round Robin, o quantum define o tempo máximo de cada turno na CPU.</div></div>
+    <div><div class="eb" style="color:var(--mut)">QUANTUM</div><div class="row" style="gap:6px;margin-top:6px;opacity:${S.alg=='rr'?1:.4}"><button class="btn" onclick="S.q=Math.max(1,S.q-1);render()">−</button><div class="btn" style="width:80px;text-align:center">${S.q} s</div><button class="btn" onclick="S.q++;render()">+</button></div></div>
+    <div><div class="eb" style="color:var(--mut)">VELOCIDADE</div><select style="margin-top:6px;width:150px" onchange="S.ms=+this.value"><option value="1000" ${S.ms==1000?'selected':''}>1× • Tempo real</option><option value="500" ${S.ms==500?'selected':''}>2×</option><option value="250" ${S.ms==250?'selected':''}>4×</option></select></div>
+    <div><div class="eb" style="color:var(--mut)">AMBIENTE</div><div style="margin-top:12px">▣ 1 CPU • 4 aplicativos</div></div></div>
+    <div class="row" style="margin-top:16px"><div class="row" style="gap:10px"><span class="chip cE" style="padding:8px">💡</span><div><b>Aprenda experimentando</b><div class="sub" style="font-size:10.5px">Abra os aplicativos, crie processos e observe como eles se alternam entre os estados.</div></div></div>
+    <button class="btn p" style="margin-left:auto;padding:11px 18px" onclick="iniciar()">→ Iniciar simulação</button></div>
+    <div style="text-align:center;color:var(--mut);font-size:10px;margin-top:34px">⛨ Ambiente seguro de aprendizagem. Nenhum processo real do computador será alterado.</div></div>${foot()}</div>`}
+    function turnos(st){const rr=S.alg=='rr',q=rr?S.q:1e9;let t=st.t,out=[];const r=st.procs.find(p=>p.e=='E');let f=st.procs.filter(p=>p.e=='P').map(p=>({...p}));
+     if(r){const u=rr?((st.fatia-1)%S.q)+1:0,s=Math.min(r.rest,q-u);if(s>0){out.push([r,t,t+s]);t+=s;if(r.rest>s)f.push({...r,rest:r.rest-s})}else f.push({...r})}
+     while(f.length&&out.length<5){const p=f.shift(),s=Math.min(p.rest,q);out.push([p,t,t+s]);t+=s;if(p.rest>s)f.push({...p,rest:p.rest-s})}return out}
+    function telaMon(){const st=S.st||{t:0,procs:[],pausado:false,m:{}},P=st.procs,r=P.find(p=>p.e=='E'),pr=P.filter(p=>p.e=='P'),bl=P.filter(p=>p.e=='B'),u=r?((st.fatia-1)%S.q)+1:0;
+    const cont=a=>P.filter(p=>sp(p.nome).app==a).length;
+    return`<div class="win">${barra('Monitor de processos • '+NOMEALG[S.alg])}<div class="row" style="align-items:stretch;min-height:560px"><div class="side"><div class="eb" style="color:var(--mut);margin-bottom:10px">APLICATIVOS</div>
+    ${Object.keys(APPS).map(a=>`<div class="app" onclick="S.app='${a}';render()"><div class="ai" style="background:${APPS[a].c}">${APPS[a].i}</div><div><b>${a}</b><small>${cont(a)} processo${cont(a)==1?'':'s'}</small></div><span style="margin-left:auto;color:var(--mut)">↗</span></div>`).join('')}
+    <div class="dk" style="margin-top:14px"><div style="font-size:9px;opacity:.6;letter-spacing:.06em">⟳ ESCALONADOR</div><div style="font-size:16px;font-weight:600;margin:6px 0 2px">${NOMEALG[S.alg]}</div><div style="font-size:10px;opacity:.6">${S.alg=='rr'?'Quantum '+S.q+' s • ':''}${S.alg=='fcfs'?'Não preemptivo':'Preemptivo'}</div><hr style="border:0;border-top:1px solid #ffffff22;margin:10px 0"><div style="font-size:10.5px;cursor:pointer" onclick="trocar()">Trocar algoritmo <span style="float:right">→</span></div></div>
+    <button class="btn p" style="width:100%;margin-top:12px" onclick="S.rel=true;render()">Gerar relatório</button><button class="btn" style="width:100%;margin-top:10px;color:var(--red);background:var(--rbg);border-color:#f7cdd0" onclick="trocar()">⏻ Encerrar sessão</button></div>
+    <div style="flex:1;padding:20px 22px"><div class="row"><div><span style="font-size:22px;font-weight:700">Monitor de processos</span> <span class="chip" style="background:#e3f6ec;color:#2a9a63;margin-left:6px">• ${st.pausado?'Pausado':'Simulando'}</span><div class="sub" style="font-size:10.5px;margin-top:3px">${P.length} processos ativos • ${r?1:0} em execução • ${pr.length} prontos • ${bl.length} bloqueados</div></div>
+    <div class="row" style="margin-left:auto;gap:8px"><span class="sub">t = ${st.t} s</span><button class="btn p" onclick="api('pausar?v=${st.pausado?0:1}')">${st.pausado?'▶ Retomar':'⏸ Pausar'}</button><button class="btn" onclick="api('passo')">▷ Passo</button><button class="btn" style="color:var(--red)" onclick="iniciar()">↺</button></div></div>
+    <div style="display:grid;grid-template-columns:1.1fr 1.1fr 1fr;gap:12px;margin:16px 0"><div class="dk" style="min-height:130px"><div class="row" style="font-size:10px;opacity:.7"><span>● Em execução</span><span style="margin-left:auto">CPU 01</span></div>${r?`<div class="row" style="gap:9px;margin:10px 0"><div class="ai" style="width:30px;height:30px;border-radius:8px;background:${APPS[sp(r.nome).app].c};display:grid;place-items:center;background:#3a3354">${APPS[sp(r.nome).app].i}</div><div><div style="font-size:16px;font-weight:600">${pid(r.n)} • ${sp(r.nome).acao}</div><div style="font-size:10px;opacity:.6">${sp(r.nome).app} • ${r.rest} s de CPU restantes</div></div></div><div class="row" style="font-size:10px;opacity:.7"><span>Quantum consumido</span><span style="margin-left:auto">${u} / ${S.q} s</span></div><div style="height:5px;background:#ffffff22;border-radius:9px;margin:5px 0"><div style="height:5px;width:${S.alg=='rr'?u/S.q*100:100}%;background:#a98ce8;border-radius:9px"></div></div><div style="font-size:9.5px;opacity:.55">Próxima troca de contexto em ${Math.min(r.rest,S.alg=='rr'?S.q-u:r.rest)} s</div>`:'<div style="margin-top:30px;opacity:.6">CPU ociosa</div>'}</div>
+    <div class="card" style="padding:13px"><div class="row"><b>☰ Fila de prontos</b><span class="chip cP" style="margin-left:auto">${pr.length}</span></div>${pr.slice(0,3).map((p,i)=>`<div class="row" style="padding:8px;margin-top:7px;border-radius:7px;background:${i?'#f8f7fd':'#e9f1ff'}"><span style="color:var(--mut);margin-right:8px;font-size:10px">${i+1}</span><b style="font-weight:500">${pid(p.n)} ${sp(p.nome).acao}</b><span style="margin-left:auto;color:var(--mut)">${p.rest} s</span></div>`).join('')||'<div class="sub" style="margin-top:14px">Fila vazia</div>'}${pr[0]?`<div style="font-size:9.5px;color:var(--mut);margin-top:8px">${pid(pr[0].n)} será o próximo a receber a CPU.</div>`:''}</div>
+    <div class="card" style="padding:13px"><div class="row"><b>▯▯ Bloqueados</b><span class="chip cB" style="margin-left:auto">${bl.length}</span></div>${bl.map(p=>`<div style="margin-top:9px"><b>${pid(p.n)} ${sp(p.nome).acao}</b><div style="font-size:10px;color:var(--mut)">Aguardando resposta da rede</div></div>`).join('')||'<div class="sub" style="margin-top:14px">Nenhum</div>'}${bl.length?'<div style="font-size:9.5px;color:var(--red);margin-top:8px">E/S em andamento • CPU liberada</div>':''}</div></div>
+    <div class="card"><div class="row" style="padding:12px 14px"><b>Todos os processos</b><span class="chip cP" style="margin-left:8px">${P.length}</span></div><table><tr><th>PID</th><th>APLICATIVO / AÇÃO</th><th>ESTADO</th><th>CPU TOTAL</th><th>RESTANTE</th><th>FIM</th></tr>
+    ${P.map(p=>`<tr class="${p.e=='E'?'sel':''}"><td><b style="color:var(--p)">${pid(p.n)}</b></td><td>${APPS[sp(p.nome).app].i} ${sp(p.nome).app} / <b>${sp(p.nome).acao}</b></td><td>${chip(p.e)}</td><td>${p.tot} s</td><td>${p.rest} s</td><td style="color:var(--red);cursor:pointer" onclick="api('fechar?n=${p.n}')">⊗</td></tr>`).join('')||'<tr><td colspan="6" class="sub">Abra um aplicativo e crie processos.</td></tr>'}</table></div>
+    <div class="row" style="margin-top:14px"><b style="font-size:12px">Próximos turnos da CPU</b><span class="sub" style="margin-left:auto;font-size:10px">Previsão sem novos processos ou desbloqueios • quantum de ${S.q} s</span></div>
+    <div class="tl">${turnos(st).map(([p,a,b],i)=>`<div style="flex:${Math.max(b-a,1)};background:${sh[i%3]}"><span>${pid(p.n)} • ${sp(p.nome).acao}</span><span style="opacity:.7">${a}–${b} s</span></div>`).join('')||'<div style="background:#e5e1f2;color:var(--mut);flex:1">Sem processos prontos</div>'}</div>
+    <div class="sub" style="margin-top:12px;font-size:10.5px">ⓘ Último evento • ${S.ev[0]||'aguardando'}</div></div></div>${foot()}</div>`}
+    function janela(a){const st=S.st||{procs:[],t:0},A=APPS[a],mine=st.procs.filter(p=>sp(p.nome).app==a),p=mine[mine.length-1],u=((st.fatia||1)-1)%S.q+1;
+    let msg='Escolha uma ação para criar um processo.';if(p){const n=pid(p.n);msg=p.e=='E'?`${sp(p.nome).acao} em andamento. O processo ${n} está usando a CPU. ${u} s consumidos no quantum atual.`:p.e=='B'?`${n} aguarda resposta de E/S. A CPU foi liberada.`:`${n} está pronto e aguarda sua vez na fila da CPU.`}
+    return`<div class="ov" onclick="if(event.target==this){S.app=null;render()}"><div class="win">${barra(a+' • '+A.t,"S.app=null;render()")}<div class="row" style="align-items:stretch"><div style="flex:1;padding:20px 24px"><div class="eb">APLICATIVOS / ${a.toUpperCase()}</div><h1 style="font-size:22px">${a=='Jogo'?'Sua próxima jogada começa aqui.':a=='Rede social'?'Boas ideias conectam pessoas.':a=='Navegador'?'Explore uma ideia de cada vez.':'Calcule com a CPU'}</h1><div class="sub">Cada ação do aplicativo representa um processo para o sistema operacional.</div>
+    ${a=='Jogo'?`<div class="hero"><small>FASE 01 • A JORNADA</small><b style="font-size:24px">${A.t}</b><small>Encontre o portal e descubra novos caminhos.</small></div>`:''}
+    <div style="display:grid;grid-template-columns:repeat(${Math.min(A.a.length,3)},1fr);gap:10px;margin-top:14px">${A.a.map((x,i)=>`<div class="card act ${i==0&&a=='Jogo'?'a1':''}" onclick="acao('${a}','${x[0]}')"><div><b>${x[0]}</b><small>${x[1]}</small></div><span style="margin-left:auto" class="chip cE">${x[2]}</span></div>`).join('')}</div>
+    <div class="card row" style="padding:12px;margin-top:12px;gap:10px"><span class="chip cP">✓</span><div><b style="font-size:11.5px">${msg}</b></div>${p?`<span class="chip cE" style="margin-left:auto">${pid(p.n)}</span>`:''}</div></div>
+    <div style="width:250px;border-left:1px solid var(--bd);background:#fff;padding:18px"><div class="row"><b>Por trás da ação</b><span style="margin-left:auto;color:var(--p)">∿</span></div><div class="sub" style="font-size:10.5px;margin:6px 0 12px">Cada ação do aplicativo representa um processo.</div>
+    ${p?`<div class="card" style="padding:12px"><div class="row"><b>${pid(p.n)}</b><span style="margin-left:auto">${chip(p.e)}</span></div><div style="font-size:16px;margin:10px 0">${sp(p.nome).acao}</div>${[['Tempo de CPU',p.tot+' s'],['Prioridade','Normal'],['Algoritmo',NOMEALG[S.alg]]].map(x=>`<div class="row" style="padding:5px 0;border-top:1px solid var(--bd)"><span class="sub">${x[0]}</span><b style="margin-left:auto">${x[1]}</b></div>`).join('')}</div>`:'<div class="sub">Nenhum processo deste app ainda.</div>'}
+    <div class="eb" style="color:var(--mut);margin:14px 0 6px">EVENTOS RECENTES</div>${S.ev.slice(0,2).map(e=>`<div style="margin:5px 0">• ${e}</div>`).join('')}<button class="btn" style="width:100%;margin-top:14px" onclick="S.app=null;render()">↗ Ver todos os processos</button></div></div>${foot()}</div></div>`}
+    function relatorio(){const m=(S.st||{}).m||{};return`<div class="ov" onclick="S.rel=false;render()"><div class="win" style="width:420px;padding:24px"><div class="eb">RELATÓRIO</div><h1 style="font-size:20px">Métricas da simulação</h1>${[['Processos concluídos',m.conc],['Turnaround médio',m.ta],['Tempo de resposta médio',m.resp],['Utilização da CPU',m.cpu+'%'],['Throughput',m.thr],['Trocas de contexto',m.ctx]].map(x=>`<div class="row" style="padding:9px 0;border-top:1px solid var(--bd)"><span class="sub">${x[0]}</span><b style="margin-left:auto">${x[1]??0}</b></div>`).join('')}<button class="btn p" style="width:100%;margin-top:14px">Fechar</button></div></div>`}
+    function render(){document.getElementById('app').innerHTML=(S.tela=='alg'?telaAlg():telaMon())+(S.app?janela(S.app):'')+(S.rel?relatorio():'')}
+    async function iniciar(){await api(`iniciar?alg=${S.alg}&q=${S.q}&ms=${S.ms}`);S.tela='mon';S.ev=[];S.prev=null;S.st=null;render()}
+    async function trocar(){await api('parar');S.tela='alg';S.app=null;render()}
+    async function acao(a,x){await api(`acao?app=${encodeURIComponent(a)}&acao=${x}`);S.ev.unshift(`Comando ${x} criado • t = ${(S.st||{}).t||0} s`)}
+    setInterval(async()=>{if(S.tela!='mon')return;try{const st=await(await fetch('/api/estado')).json();if(!st.on)return;const r=st.procs.find(p=>p.e=='E');
+     if(r&&r.n!=S.prev){S.ev.unshift(`${pid(r.n)} recebeu a CPU em t = ${st.t} s`)}S.prev=r?r.n:null;S.ev=S.ev.slice(0,6);S.st=st;render()}catch(e){}},500);
+    render();
+</script></body></html>

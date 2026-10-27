@@ -11,14 +11,14 @@ public class Kernel implements Lancador {
     private static final int ID_USUARIO = 100;
 
     private final protocolEscalonador esc;
-    private final int tickMs;
+    private volatile int tickMs;
     private final Scanner entrada;
 
     private final List<TarefaSistema> tarefas = List.of(
-        new TarefaSistema(1, "Kernel",              120, 1, 120),
-        new TarefaSistema(2, "Gerenciador memória", 20, 2, 20),
-        new TarefaSistema(3, "Sistema de arquivos", 25, 2, 25),
-        new TarefaSistema(4, "Relógio/Interface",    5, 1,  5)
+            new TarefaSistema(1, "Kernel",              120, 1, 120),
+            new TarefaSistema(2, "Gerenciador memória", 20, 2, 20),
+            new TarefaSistema(3, "Sistema de arquivos", 25, 2, 25),
+            new TarefaSistema(4, "Relógio/Interface",    5, 1,  5)
     );
 
     private final Map<String, Aplicativo> apps = new LinkedHashMap<>();
@@ -34,33 +34,73 @@ public class Kernel implements Lancador {
     private boolean mostrarSistema = true;
     private int deadlinesPerdidos = 0;
 
+    // ---------- métricas e modo cenário ----------
+    private final Metricas metricas = new Metricas();
+    private final List<Processo> futuros = new ArrayList<>();   // chegadas agendadas
+    private boolean verbose = true;
+    private boolean encerrarAoTerminar = false;
+    private boolean gui = false;
+    private volatile boolean pausado = false;
+    private volatile int passos = 0;
+    private int fatia = 0;
+
     public Kernel(protocolEscalonador esc, int tickMs, Scanner entrada) {
         this.esc = esc;
         this.tickMs = tickMs;
         this.entrada = entrada;
         for (Aplicativo a : List.of(new Jogo(this), new RedeSocial(this),
-                                    new Calculadora(this), new Navegador(this))) {
+                new Calculadora(this), new Navegador(this))) {
             apps.put(a.nome(), a);
         }
     }
 
+    /** Modo interface web: sem terminal nem tarefas de sistema; controlado pelo Servidor. */
+    public Kernel(protocolEscalonador esc, int tickMs) {
+        this(esc, tickMs, null);
+        this.gui = true;
+        this.verbose = false;
+    }
+
+    /** Modo cenário: sem teclado, sem daemon, sem pausa; termina sozinho quando
+     *  não há mais processos. Use agendar(...) para definir os processos. */
+    public Kernel(protocolEscalonador esc, boolean verbose) {
+        this(esc, 0, null);
+        this.encerrarAoTerminar = true;
+        this.verbose = verbose;
+    }
+
     // ---------- ciclo de vida ----------
     public void iniciar() {
-        iniciarLeitor();
-        new DaemonSistema(this, tarefas, tickMs).start();
-        IO.println("SO iniciado com " + esc.nome() + ". Digite 'ajuda'.");
+        if (encerrarAoTerminar) {
+            println("Simulação iniciada com " + esc.nome() + ".");
+        } else if (!gui) {
+            iniciarLeitor();
+            new DaemonSistema(this, tarefas, tickMs).start();
+            println("SO iniciado com " + esc.nome() + ". Digite 'ajuda'.");
+        }
         while (ligado) {
-            tick();
+            if (!pausado || passos > 0) {
+                if (passos > 0) passos--;
+                tick();
+            }
             dormir();
         }
-        IO.println("SO encerrado em t=" + relogio
-            + " (deadlines perdidos: " + deadlinesPerdidos + ")");
+        println("SO encerrado em t=" + relogio
+                + " (deadlines perdidos: " + deadlinesPerdidos + ")");
+        if (verbose) resumo().imprimir();
+    }
+
+    /** Métricas da simulação (válidas ao final da execução). */
+    public Metricas.Resumo resumo() {
+        return metricas.resumir(esc.nome(), relogio, deadlinesPerdidos);
     }
 
     private synchronized void tick() {
         processarComandos();
+        admitirChegadas();
         desbloquear();
         executarCpu();
+        if (encerrarAoTerminar && futuros.isEmpty() && ativos.isEmpty()) ligado = false;
     }
 
     private void iniciarLeitor() {
@@ -78,7 +118,16 @@ public class Kernel implements Lancador {
     public synchronized int lancar(String nome, int burst, int ioApos, int ioDuracao) {
         int id = proximoId++;
         admitir(new Processo(id, nome, relogio, burst,
-                             relogio + PRAZO_USUARIO, ioApos, ioDuracao));
+                relogio + PRAZO_USUARIO, ioApos, ioDuracao));
+        return id;
+    }
+
+    /** Agenda um processo para chegar no instante 'chegada' (usado nos cenários). */
+    public synchronized int agendar(String nome, int chegada, int burst,
+                                    int ioApos, int ioDuracao, int prazoRel) {
+        int id = proximoId++;
+        futuros.add(new Processo(id, nome, chegada, burst,
+                chegada + prazoRel, ioApos, ioDuracao));
         return id;
     }
 
@@ -86,11 +135,11 @@ public class Kernel implements Lancador {
         if (ativos.containsKey(t.id())) {
             deadlinesPerdidos++;
             if (mostrarSistema)
-                IO.println("tempo " + relogio + ": ATRASO, " + t.nome() + " ainda não terminou");
+                println("tempo " + relogio + ": ATRASO, " + t.nome() + " ainda não terminou");
             return;
         }
         admitir(new Processo(t.id(), t.nome(), relogio, t.burst(),
-                             relogio + t.deadlineRel()));
+                relogio + t.deadlineRel()));
     }
 
     // ---------- núcleo da simulação ----------
@@ -99,6 +148,17 @@ public class Kernel implements Lancador {
         ativos.put(p.getId(), p);
         esc.admitir(p);
         log(p, "chegou à fila de prontos");
+    }
+
+    private void admitirChegadas() {
+        var it = futuros.iterator();
+        while (it.hasNext()) {
+            var p = it.next();
+            if (p.getChegada() <= relogio) {
+                it.remove();
+                admitir(p);
+            }
+        }
     }
 
     private void desbloquear() {
@@ -117,12 +177,14 @@ public class Kernel implements Lancador {
     private void executarCpu() {
         var p = esc.escolher();
         if (p == null) {
-            if (!ocioso) { IO.println("tempo " + relogio + ": CPU ociosa"); ocioso = true; }
+            if (!ocioso) { println("tempo " + relogio + ": CPU ociosa"); ocioso = true; }
             ultimoId = -1;
             relogio++;
             return;
         }
         ocioso = false;
+        fatia = (p.getId() == ultimoId) ? fatia + 1 : 1;
+        metricas.registrarExecucao(p);
 
         log(p, p.getId() == ultimoId ? "continua em execução" : "entrou em execução");
         p.setEstado(Estados.EM_EXECUCAO);
@@ -136,8 +198,9 @@ public class Kernel implements Lancador {
             ativos.remove(p.getId());
             boolean perdeu = p.getConclusao() > p.getDeadline();
             if (perdeu) deadlinesPerdidos++;
+            if (p.getId() >= ID_USUARIO) metricas.registrarConclusao(p);
             log(p, "concluído (espera=" + p.getEspera() + ", retorno=" + p.getRetorno() + ")"
-                + (perdeu ? " [PERDEU DEADLINE]" : ""));
+                    + (perdeu ? " [PERDEU DEADLINE]" : ""));
             esc.aposTick(p);
             ultimoId = -1;
         } else if (p.deveBloquear()) {
@@ -155,8 +218,8 @@ public class Kernel implements Lancador {
 
     private void log(ProcessosProtocol p, String msg) {
         if (p.getId() < ID_USUARIO && !mostrarSistema) return;
-        IO.println("tempo " + relogio + ": processo " + p.getId()
-            + " (" + p.getNome() + ") " + msg);
+        println("tempo " + relogio + ": processo " + p.getId()
+                + " (" + p.getNome() + ") " + msg);
     }
 
     // ---------- terminal ----------
@@ -170,7 +233,7 @@ public class Kernel implements Lancador {
             if (apps.containsKey(cmd)) {
                 var app = apps.get(cmd);
                 if (a.length < 2 || !app.executar(a[1], Arrays.copyOfRange(a, 2, a.length)))
-                    IO.println("Ações de " + cmd + ": " + app.acoes());
+                    println("Ações de " + cmd + ": " + app.acoes());
                 continue;
             }
             switch (cmd) {
@@ -179,7 +242,7 @@ public class Kernel implements Lancador {
                 case "logsistema" -> mostrarSistema = a.length > 1 && a[1].equalsIgnoreCase("on");
                 case "ajuda"      -> ajuda();
                 case "sair"       -> ligado = false;
-                default           -> IO.println("Comando desconhecido. Digite 'ajuda'.");
+                default           -> println("Comando desconhecido. Digite 'ajuda'.");
             }
         }
     }
@@ -187,36 +250,73 @@ public class Kernel implements Lancador {
     private void fechar(String[] a) {
         try {
             int id = Integer.parseInt(a[1]);
-            if (id < ID_USUARIO) { IO.println("Processo do sistema não pode ser encerrado."); return; }
+            if (id < ID_USUARIO) { println("Processo do sistema não pode ser encerrado."); return; }
             var p = ativos.remove(id);
-            if (p == null) { IO.println("Processo " + id + " não existe."); return; }
+            if (p == null) { println("Processo " + id + " não existe."); return; }
             bloqueados.remove(p);
             esc.remover(id);
             p.registrarConclusao(relogio);
             if (ultimoId == id) ultimoId = -1;
             log(p, "foi encerrado pelo usuário");
         } catch (RuntimeException e) {
-            IO.println("Uso: fechar <id>");
+            println("Uso: fechar <id>");
         }
     }
 
     private void listar() {
-        IO.println("t=" + relogio + " | " + esc.nome());
-        IO.println("  ID  NOME                       CHEGADA TOTAL REST  ESTADO");
+        println("t=" + relogio + " | " + esc.nome());
+        println("  ID  NOME                       CHEGADA TOTAL REST  ESTADO");
         for (var p : ativos.values()) {
-            IO.println(String.format("%s %-3d %-26s %-7d %-5d %-5d %s",
-                p.getId() == ultimoId ? "*" : " ", p.getId(), p.getNome(),
-                p.getChegada(), p.getTempoTotal(), p.getTempoRestante(), p.getEstado()));
+            println(String.format("%s %-3d %-26s %-7d %-5d %-5d %s",
+                    p.getId() == ultimoId ? "*" : " ", p.getId(), p.getNome(),
+                    p.getChegada(), p.getTempoTotal(), p.getTempoRestante(), p.getEstado()));
         }
     }
 
     private void ajuda() {
-        IO.println("<app> <ação> | ps | fechar <id> | logsistema on|off | sair");
-        apps.values().forEach(a -> IO.println("  " + a.nome() + ": " + a.acoes()));
-        IO.println("  calculadora calcular 2 + 3");
+        println("<app> <ação> | ps | fechar <id> | logsistema on|off | sair");
+        apps.values().forEach(a -> println("  " + a.nome() + ": " + a.acoes()));
+        println("  calculadora calcular 2 + 3");
+    }
+
+    // ---------- controle e estado para a interface web ----------
+    public void parar() { ligado = false; }
+    public void pausar(boolean v) { pausado = v; }
+    public void passo() { passos++; }
+    public void setTickMs(int ms) { tickMs = ms; }
+    public synchronized void encerrarProcesso(int n) { fechar(new String[]{"fechar", "" + (n + ID_USUARIO - 1)}); }
+
+    public synchronized String estadoJson() {
+        var sb = new StringBuilder("{\"on\":true,\"t\":").append(relogio)
+                .append(",\"pausado\":").append(pausado)
+                .append(",\"alg\":\"").append(esc.nome()).append("\",\"fatia\":").append(fatia)
+                .append(",\"procs\":[");
+        boolean primeiro = true;
+        for (var p : ativos.values()) {
+            if (p.getId() < ID_USUARIO) continue;
+            if (!primeiro) sb.append(',');
+            primeiro = false;
+            String e = bloqueados.contains(p) ? "B" : (p.getId() == ultimoId ? "E" : "P");
+            sb.append("{\"n\":").append(p.getId() - ID_USUARIO + 1)
+                    .append(",\"nome\":\"").append(p.getNome()).append("\",\"tot\":").append(p.getTempoTotal())
+                    .append(",\"rest\":").append(p.getTempoRestante())
+                    .append(",\"e\":\"").append(e).append("\"}");
+        }
+        var m = resumo();
+        return sb.append("],\"m\":{\"conc\":").append(m.concluidos())
+                .append(",\"ta\":").append(String.format(Locale.ROOT, "%.2f", m.turnaroundMedio()))
+                .append(",\"resp\":").append(String.format(Locale.ROOT, "%.2f", m.respostaMedio()))
+                .append(",\"cpu\":").append(String.format(Locale.ROOT, "%.1f", m.utilizacaoCpu() * 100))
+                .append(",\"thr\":").append(String.format(Locale.ROOT, "%.3f", m.throughput()))
+                .append(",\"ctx\":").append(m.trocasContexto()).append("}}").toString();
+    }
+
+    private void println(String s) {
+        if (verbose) System.out.println(s);
     }
 
     private void dormir() {
+        if (tickMs <= 0) return;
         try { Thread.sleep(tickMs); }
         catch (InterruptedException e) { ligado = false; }
     }
