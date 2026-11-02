@@ -23,6 +23,11 @@ public class Kernel implements Lancador {
 
     private final Map<String, Aplicativo> apps = new LinkedHashMap<>();
     private final Map<Integer, ProcessosProtocol> ativos = new LinkedHashMap<>();
+    // Mantém as execuções finalizadas para que a interface possa exibi-las no histórico.
+    private final List<ProcessosProtocol> historico = new ArrayList<>();
+    private final Map<Integer, String> estadoFinal = new HashMap<>();
+    // Próximo instante de liberação das tarefas periódicas no modo gráfico.
+    private final int[] proximaTarefaSistema = new int[tarefas.size()];
     private final List<ProcessosProtocol> bloqueados = new ArrayList<>();
     private final Queue<String> comandos = new ConcurrentLinkedQueue<>();
 
@@ -54,7 +59,7 @@ public class Kernel implements Lancador {
         }
     }
 
-    /** Modo interface web: sem terminal nem tarefas de sistema; controlado pelo Servidor. */
+    /** Modo interface web: sem terminal; tarefas de sistema controladas pelo tick. */
     public Kernel(protocolEscalonador esc, int tickMs) {
         this(esc, tickMs, null);
         this.gui = true;
@@ -97,10 +102,23 @@ public class Kernel implements Lancador {
 
     private synchronized void tick() {
         processarComandos();
+        // No modo web, as tarefas do sistema acompanham o relógio da simulação.
+        if (gui) liberarTarefasSistemaNoTick();
         admitirChegadas();
         desbloquear();
         executarCpu();
         if (encerrarAoTerminar && futuros.isEmpty() && ativos.isEmpty()) ligado = false;
+    }
+
+    private void liberarTarefasSistemaNoTick() {
+        for (int i = 0; i < tarefas.size(); i++) {
+            TarefaSistema tarefa = tarefas.get(i);
+            if (relogio >= proximaTarefaSistema[i]) {
+                liberarSistema(tarefa);
+                proximaTarefaSistema[i] =
+                        (relogio / tarefa.periodo() + 1) * tarefa.periodo();
+            }
+        }
     }
 
     private void iniciarLeitor() {
@@ -196,6 +214,8 @@ public class Kernel implements Lancador {
         if (p.terminou()) {
             p.registrarConclusao(relogio);
             ativos.remove(p.getId());
+            historico.add(p);
+            estadoFinal.put(p.getId(), "C");
             boolean perdeu = p.getConclusao() > p.getDeadline();
             if (perdeu) deadlinesPerdidos++;
             if (p.getId() >= ID_USUARIO) metricas.registrarConclusao(p);
@@ -256,6 +276,8 @@ public class Kernel implements Lancador {
             bloqueados.remove(p);
             esc.remover(id);
             p.registrarConclusao(relogio);
+            historico.add(p);
+            estadoFinal.put(id, "X");
             if (ultimoId == id) ultimoId = -1;
             log(p, "foi encerrado pelo usuário");
         } catch (RuntimeException e) {
@@ -289,19 +311,42 @@ public class Kernel implements Lancador {
     public synchronized String estadoJson() {
         var sb = new StringBuilder("{\"on\":true,\"t\":").append(relogio)
                 .append(",\"pausado\":").append(pausado)
-                .append(",\"alg\":\"").append(esc.nome()).append("\",\"fatia\":").append(fatia)
+                .append(",\"alg\":\"").append(escaparJson(esc.nome())).append("\",\"fatia\":").append(fatia)
                 .append(",\"procs\":[");
         boolean primeiro = true;
+
+        // Processos ativos, incluindo as tarefas do sistema.
         for (var p : ativos.values()) {
-            if (p.getId() < ID_USUARIO) continue;
             if (!primeiro) sb.append(',');
             primeiro = false;
+            boolean sistema = p.getId() < ID_USUARIO;
             String e = bloqueados.contains(p) ? "B" : (p.getId() == ultimoId ? "E" : "P");
-            sb.append("{\"n\":").append(p.getId() - ID_USUARIO + 1)
-                    .append(",\"nome\":\"").append(p.getNome()).append("\",\"tot\":").append(p.getTempoTotal())
+            int numero = sistema ? p.getId() : p.getId() - ID_USUARIO + 1;
+
+            sb.append("{\"n\":").append(numero)
+                    .append(",\"s\":").append(sistema)
+                    .append(",\"nome\":\"").append(escaparJson(p.getNome())).append("\"")
+                    .append(",\"tot\":").append(p.getTempoTotal())
                     .append(",\"rest\":").append(p.getTempoRestante())
                     .append(",\"e\":\"").append(e).append("\"}");
         }
+
+        // Histórico de todas as execuções finalizadas, inclusive as tarefas do sistema.
+        for (var p : historico) {
+            if (!primeiro) sb.append(',');
+            primeiro = false;
+            boolean sistema = p.getId() < ID_USUARIO;
+            int numero = sistema ? p.getId() : p.getId() - ID_USUARIO + 1;
+            String estado = estadoFinal.getOrDefault(p.getId(), "C");
+
+            sb.append("{\"n\":").append(numero)
+                    .append(",\"s\":").append(sistema)
+                    .append(",\"nome\":\"").append(escaparJson(p.getNome())).append("\"")
+                    .append(",\"tot\":").append(p.getTempoTotal())
+                    .append(",\"rest\":0")
+                    .append(",\"e\":\"").append(estado).append("\"}");
+        }
+
         var m = resumo();
         return sb.append("],\"m\":{\"conc\":").append(m.concluidos())
                 .append(",\"ta\":").append(String.format(Locale.ROOT, "%.2f", m.turnaroundMedio()))
@@ -309,6 +354,11 @@ public class Kernel implements Lancador {
                 .append(",\"cpu\":").append(String.format(Locale.ROOT, "%.1f", m.utilizacaoCpu() * 100))
                 .append(",\"thr\":").append(String.format(Locale.ROOT, "%.3f", m.throughput()))
                 .append(",\"ctx\":").append(m.trocasContexto()).append("}}").toString();
+    }
+
+    private static String escaparJson(String valor) {
+        return valor.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\r", "\\r").replace("\n", "\\n");
     }
 
     private void println(String s) {
