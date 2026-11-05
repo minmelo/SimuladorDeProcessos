@@ -23,11 +23,11 @@ public class Kernel implements Lancador {
 
     private final Map<String, Aplicativo> apps = new LinkedHashMap<>();
     private final Map<Integer, ProcessosProtocol> ativos = new LinkedHashMap<>();
-    // Mantém as execuções finalizadas para que a interface possa exibi-las no histórico.
     private final List<ProcessosProtocol> historico = new ArrayList<>();
-    private final Map<Integer, String> estadoFinal = new HashMap<>();
-    // Próximo instante de liberação das tarefas periódicas no modo gráfico.
-    private final int[] proximaTarefaSistema = new int[tarefas.size()];
+    // Cada execução periódica tem uma identidade própria, mesmo reutilizando S1-S4.
+    private final Map<ProcessosProtocol, Integer> execucoesSistema = new IdentityHashMap<>();
+    private final Map<Integer, Integer> contadorExecucoesSistema = new HashMap<>();
+    private final Map<ProcessosProtocol, String> estadoHistorico = new IdentityHashMap<>();
     private final List<ProcessosProtocol> bloqueados = new ArrayList<>();
     private final Queue<String> comandos = new ConcurrentLinkedQueue<>();
 
@@ -48,6 +48,7 @@ public class Kernel implements Lancador {
     private volatile boolean pausado = false;
     private volatile int passos = 0;
     private int fatia = 0;
+    private Thread daemon;
 
     public Kernel(protocolEscalonador esc, int tickMs, Scanner entrada) {
         this.esc = esc;
@@ -59,7 +60,7 @@ public class Kernel implements Lancador {
         }
     }
 
-    /** Modo interface web: sem terminal; tarefas de sistema controladas pelo tick. */
+    /** Modo interface web: sem terminal nem tarefas de sistema; controlado pelo Servidor. */
     public Kernel(protocolEscalonador esc, int tickMs) {
         this(esc, tickMs, null);
         this.gui = true;
@@ -78,9 +79,10 @@ public class Kernel implements Lancador {
     public void iniciar() {
         if (encerrarAoTerminar) {
             println("Simulação iniciada com " + esc.nome() + ".");
-        } else if (!gui) {
-            iniciarLeitor();
-            new DaemonSistema(this, tarefas, tickMs).start();
+        } else {
+            if (!gui) iniciarLeitor();
+            daemon = new DaemonSistema(this, tarefas, tickMs);
+            daemon.start();
             println("SO iniciado com " + esc.nome() + ". Digite 'ajuda'.");
         }
         while (ligado) {
@@ -102,23 +104,10 @@ public class Kernel implements Lancador {
 
     private synchronized void tick() {
         processarComandos();
-        // No modo web, as tarefas do sistema acompanham o relógio da simulação.
-        if (gui) liberarTarefasSistemaNoTick();
         admitirChegadas();
         desbloquear();
         executarCpu();
         if (encerrarAoTerminar && futuros.isEmpty() && ativos.isEmpty()) ligado = false;
-    }
-
-    private void liberarTarefasSistemaNoTick() {
-        for (int i = 0; i < tarefas.size(); i++) {
-            TarefaSistema tarefa = tarefas.get(i);
-            if (relogio >= proximaTarefaSistema[i]) {
-                liberarSistema(tarefa);
-                proximaTarefaSistema[i] =
-                        (relogio / tarefa.periodo() + 1) * tarefa.periodo();
-            }
-        }
     }
 
     private void iniciarLeitor() {
@@ -156,8 +145,11 @@ public class Kernel implements Lancador {
                 println("tempo " + relogio + ": ATRASO, " + t.nome() + " ainda não terminou");
             return;
         }
-        admitir(new Processo(t.id(), t.nome(), relogio, t.burst(),
-                relogio + t.deadlineRel()));
+        Processo processo = new Processo(t.id(), t.nome(), relogio, t.burst(),
+                relogio + t.deadlineRel());
+        int numeroExecucao = contadorExecucoesSistema.merge(t.id(), 1, Integer::sum);
+        execucoesSistema.put(processo, numeroExecucao);
+        admitir(processo);
     }
 
     // ---------- núcleo da simulação ----------
@@ -215,10 +207,10 @@ public class Kernel implements Lancador {
             p.registrarConclusao(relogio);
             ativos.remove(p.getId());
             historico.add(p);
-            estadoFinal.put(p.getId(), "C");
+            estadoHistorico.put(p, "C");
             boolean perdeu = p.getConclusao() > p.getDeadline();
             if (perdeu) deadlinesPerdidos++;
-            if (p.getId() >= ID_USUARIO) metricas.registrarConclusao(p);
+            metricas.registrarConclusao(p);   // inclui as tarefas de sistema
             log(p, "concluído (espera=" + p.getEspera() + ", retorno=" + p.getRetorno() + ")"
                     + (perdeu ? " [PERDEU DEADLINE]" : ""));
             esc.aposTick(p);
@@ -277,7 +269,7 @@ public class Kernel implements Lancador {
             esc.remover(id);
             p.registrarConclusao(relogio);
             historico.add(p);
-            estadoFinal.put(id, "X");
+            estadoHistorico.put(p, "X");
             if (ultimoId == id) ultimoId = -1;
             log(p, "foi encerrado pelo usuário");
         } catch (RuntimeException e) {
@@ -302,7 +294,7 @@ public class Kernel implements Lancador {
     }
 
     // ---------- controle e estado para a interface web ----------
-    public void parar() { ligado = false; }
+    public void parar() { ligado = false; if (daemon != null) daemon.interrupt(); }
     public void pausar(boolean v) { pausado = v; }
     public void passo() { passos++; }
     public void setTickMs(int ms) { tickMs = ms; }
@@ -313,38 +305,53 @@ public class Kernel implements Lancador {
                 .append(",\"pausado\":").append(pausado)
                 .append(",\"alg\":\"").append(escaparJson(esc.nome())).append("\",\"fatia\":").append(fatia)
                 .append(",\"procs\":[");
+
         boolean primeiro = true;
 
-        // Processos ativos, incluindo as tarefas do sistema.
+        // Processos que ainda estão ativos.
         for (var p : ativos.values()) {
             if (!primeiro) sb.append(',');
             primeiro = false;
+
             boolean sistema = p.getId() < ID_USUARIO;
-            String e = bloqueados.contains(p) ? "B" : (p.getId() == ultimoId ? "E" : "P");
+            String estado = bloqueados.contains(p) ? "B"
+                    : (p.getId() == ultimoId ? "E" : "P");
             int numero = sistema ? p.getId() : p.getId() - ID_USUARIO + 1;
+            String uid = sistema
+                    ? "S" + p.getId() + "#" + execucoesSistema.getOrDefault(p, 1)
+                    : "P" + String.format(Locale.ROOT, "%02d", numero);
 
             sb.append("{\"n\":").append(numero)
                     .append(",\"s\":").append(sistema)
+                    .append(",\"uid\":\"").append(uid).append("\"")
                     .append(",\"nome\":\"").append(escaparJson(p.getNome())).append("\"")
                     .append(",\"tot\":").append(p.getTempoTotal())
                     .append(",\"rest\":").append(p.getTempoRestante())
-                    .append(",\"e\":\"").append(e).append("\"}");
+                    .append(",\"cheg\":").append(p.getChegada())
+                    .append(",\"fim\":null")
+                    .append(",\"e\":\"").append(estado).append("\"}");
         }
 
-        // Histórico de todas as execuções finalizadas, inclusive as tarefas do sistema.
+        // Cada objeto representa uma execução concluída/encerrada.
         for (var p : historico) {
             if (!primeiro) sb.append(',');
             primeiro = false;
+
             boolean sistema = p.getId() < ID_USUARIO;
             int numero = sistema ? p.getId() : p.getId() - ID_USUARIO + 1;
-            String estado = estadoFinal.getOrDefault(p.getId(), "C");
+            String uid = sistema
+                    ? "S" + p.getId() + "#" + execucoesSistema.getOrDefault(p, 1)
+                    : "P" + String.format(Locale.ROOT, "%02d", numero);
 
             sb.append("{\"n\":").append(numero)
                     .append(",\"s\":").append(sistema)
+                    .append(",\"uid\":\"").append(uid).append("\"")
                     .append(",\"nome\":\"").append(escaparJson(p.getNome())).append("\"")
                     .append(",\"tot\":").append(p.getTempoTotal())
                     .append(",\"rest\":0")
-                    .append(",\"e\":\"").append(estado).append("\"}");
+                    .append(",\"cheg\":").append(p.getChegada())
+                    .append(",\"fim\":").append(p.getConclusao())
+                    .append(",\"e\":\"").append(estadoHistorico.getOrDefault(p, "C")).append("\"}");
         }
 
         var m = resumo();
@@ -357,8 +364,10 @@ public class Kernel implements Lancador {
     }
 
     private static String escaparJson(String valor) {
-        return valor.replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\r", "\\r").replace("\n", "\\n");
+        return valor.replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n");
     }
 
     private void println(String s) {
